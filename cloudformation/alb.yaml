@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description:
+  This template deploys an Application Load Balancer and outputs the ALB name, URL, security group, and target group.
+  The ALB, security, and target group names are exported for use elsewhere.
+  Leave the certificate ARN parameter blank if you wish to use a non-HTTPS ALB.s 
+
+Parameters:
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Choose which VPC the Application Load Balancer should be deployed to.
+
+  Subnets:
+    Description: Choose which subnets the Application Load Balancer should be deployed to.
+    Type: List<AWS::EC2::Subnet::Id>
+
+  ALBCertificateArn:
+    Description: Enter the SSL certificate ARN for the Application Load Balancer.
+    Type: String
+
+  TargetGroupTrafficPort:
+    Description: Enter the traffic port for the target group.
+    Type: Number
+
+Conditions: 
+
+  UseSSL: !Not [!Equals [!Ref ALBCertificateArn, ""]]
+
+Resources:
+
+  SourceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${AWS::StackName}-sg'
+      GroupDescription: Allow traffic to the load balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !If 
+            - UseSSL
+            - 443
+            - 80
+          ToPort: !If 
+            - UseSSL
+            - 443
+            - 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: 'Name'
+          Value: !Sub '${AWS::StackName}-sg'
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      Name: !Sub '${AWS::StackName}-ALB'
+      Subnets: !Ref Subnets
+      SecurityGroups:
+        - !Ref SourceSecurityGroup
+
+  LoadBalancerListener: 
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: !If 
+            - UseSSL
+            - 443
+            - 80
+      Protocol: !If 
+            - UseSSL
+            - 'HTTPS'
+            - 'HTTP'
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+      Certificates:
+        - CertificateArn:
+            !If
+            - UseSSL
+            - Ref: ALBCertificateArn
+            - Ref: 'AWS::NoValue'
+
+  DefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${AWS::StackName}-tg'
+      VpcId: !Ref VPC
+      Port: !Ref TargetGroupTrafficPort
+      Protocol: HTTP
+      Matcher: 
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: '/'
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 25
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+
+Outputs:
+  LoadBalancer:
+    Description: The name of the load balancer.
+    Value: !GetAtt LoadBalancer.LoadBalancerName
+    Export:
+      Name: !Sub "${AWS::StackName}-ALB"
+
+  LoadBalancerUrl:
+    Description: The URL of the ALB.
+    Value: !GetAtt LoadBalancer.DNSName
+
+  TargetGroup:
+    Description: The name of the target group.
+    Value: !GetAtt DefaultTargetGroup.TargetGroupName
+    Export:
+      Name: !Sub "${AWS::StackName}-tg"
+
+  SecurityGroup:
+    Description: The name of the ALB security group.
+    Value: !GetAtt SourceSecurityGroup.GroupId
+    Export:
+      Name: !Sub "${AWS::StackName}-sg"

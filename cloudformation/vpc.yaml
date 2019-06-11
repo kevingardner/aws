@@ -1,0 +1,173 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: 
+  This template deploys a VPC with two private subnets and one public subnet in two availability zones.
+  There is an Internet Gateway with a default route for the public subnet and a NAT Gateway with a
+  default route for the private subnets.
+
+Resources:
+
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: "10.64.0.0/16"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: 
+        - 
+          Key: "Name"
+          Value: !Sub "${AWS::StackName}-VPC"
+
+  PrivateSubnetA:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: "10.64.128.0/24"
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      Tags: 
+        - 
+          Key: "Name"
+          Value: !Sub "${AWS::StackName}-private-a"
+
+  PrivateSubnetB:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: "10.64.129.0/24"
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+      Tags: 
+        - 
+          Key: "Name"
+          Value: !Sub "${AWS::StackName}-private-b"
+
+  PublicSubnetA:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: "10.64.0.0/24"
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - 
+          Key: "Name"
+          Value: !Sub "${AWS::StackName}-public-a"
+
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags: 
+        - 
+          Key: "Name"
+          Value: !Sub "${AWS::StackName}-igw"
+
+  EIP:
+    Type: "AWS::EC2::EIP"
+    DependsOn: InternetGatewayAttachment
+    Properties:
+        Domain: "vpc"
+
+  NetworkAcl:
+    Type: "AWS::EC2::NetworkAcl"
+    Properties:
+        VpcId: !Ref VPC
+
+  PublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VPC
+      Tags: 
+        - 
+          Key: "Name"
+          Value: !Sub "${AWS::StackName} Public Routes"
+
+  PrivateRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VPC
+      Tags: 
+        - 
+          Key: "Name"
+          Value: !Sub "${AWS::StackName} Private Routes"
+
+  DefaultPublicRoute:
+    Type: "AWS::EC2::Route"
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTable
+
+  DefaultPrivateRoute:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref NatGateway
+      RouteTableId: !Ref PrivateRouteTable
+
+  NatGateway:
+    Type: "AWS::EC2::NatGateway"
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      AllocationId: !GetAtt EIP.AllocationId
+
+  InternetGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnetARouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+
+  PrivateSubnetARouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetA
+
+  PrivateBSubnetRouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetB
+
+  PublicSubnetNetworkAclAssociation:
+    Type: "AWS::EC2::SubnetNetworkAclAssociation"
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      NetworkAclId: !Ref NetworkAcl
+
+  PrivateSubnetANetworkAclAssociation:
+    Type: "AWS::EC2::SubnetNetworkAclAssociation"
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      NetworkAclId: !Ref NetworkAcl
+
+  PrivateSubnetBSubnetNetworkAclAssociation:
+    Type: "AWS::EC2::SubnetNetworkAclAssociation"
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      NetworkAclId: !Ref NetworkAcl
+
+Outputs: 
+
+  VPC: 
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+    
+  PublicSubnet2: 
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref PublicSubnetA
+
+  PrivateSubnet1:
+    Description: A reference to the private subnet in the 1st Availability Zone
+    Value: !Ref PrivateSubnetA
+
+  PrivateSubnet2: 
+    Description: A reference to the private subnet in the 2nd Availability Zone
+    Value: !Ref PrivateSubnetB
