@@ -3,20 +3,20 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description:
   This template deploys an Application Load Balancer and outputs the ALB name, URL, security group, and target group.
   The ALB, security, and target group names are exported for use elsewhere.
-  Leave the certificate ARN parameter blank if you wish to use a non-HTTPS ALB.s 
+  Leave the certificate ARN parameter blank if you wish to use a non-HTTPS ALB.
 
 Parameters:
 
   VPC:
-    Type: AWS::EC2::VPC::Id
     Description: Choose which VPC the Application Load Balancer should be deployed to.
+    Type: AWS::EC2::VPC::Id
 
   Subnets:
-    Description: Choose which subnets the Application Load Balancer should be deployed to.
+    Description: Choose which public subnets the Application Load Balancer should be deployed to.
     Type: List<AWS::EC2::Subnet::Id>
 
   ALBCertificateArn:
-    Description: Enter the SSL certificate ARN for the Application Load Balancer.
+    Description: Enter the SSL certificate ARN for the Application Load Balancer to use if you want to use SSL.
     Type: String
 
   TargetGroupTrafficPort:
@@ -25,10 +25,12 @@ Parameters:
 
 Conditions: 
 
+  #Condition that states if the ALBCertificateARN parameter is empty, UseSSL will return false and will use port 80 instead of 443.
   UseSSL: !Not [!Equals [!Ref ALBCertificateArn, ""]]
 
 Resources:
 
+  #Create the securty group that allows traffic over HTTP or HTTPS to the load balancer from anywhere.
   SourceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -48,8 +50,9 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: 'Name'
-          Value: !Sub '${AWS::StackName}-sg'
+          Value: !Sub '${AWS::StackName}-alb-sg'
 
+  #Create the Application Load Balancer and assign it to the parameter subnet and the above security group.
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties: 
@@ -58,6 +61,7 @@ Resources:
       SecurityGroups:
         - !Ref SourceSecurityGroup
 
+  #Create the load balancer listener to allow HTTP or HTTPS from the load balancer into the target group (EC2 instances).
   LoadBalancerListener: 
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -80,6 +84,8 @@ Resources:
             - Ref: ALBCertificateArn
             - Ref: 'AWS::NoValue'
 
+  #Creates the default target group and configure the health checks for the load balancer and EC2 instances.
+  #The target group manages connections from the load balancer and the ECS instances.
   DefaultTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -96,6 +102,7 @@ Resources:
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
 
+#Output the selected resources to use for cross-stack references.
 Outputs:
   LoadBalancer:
     Description: The name of the load balancer.
@@ -117,4 +124,4 @@ Outputs:
     Description: The name of the ALB security group.
     Value: !GetAtt SourceSecurityGroup.GroupId
     Export:
-      Name: !Sub "${AWS::StackName}-sg"
+      Name: !Sub "${AWS::StackName}-alb-sg"

@@ -7,6 +7,7 @@ Description:
 
 Resources:
 
+  #Create the virtual private cloud with the selected IP range.
   VPC:
     Type: "AWS::EC2::VPC"
     Properties:
@@ -18,6 +19,7 @@ Resources:
           Key: "Name"
           Value: !Sub "${AWS::StackName}-VPC"
 
+  #Create the first private subnet and randomly select an availabilty zone.
   PrivateSubnetA:
     Type: "AWS::EC2::Subnet"
     Properties:
@@ -30,6 +32,7 @@ Resources:
           Key: "Name"
           Value: !Sub "${AWS::StackName}-private-a"
 
+  #Create the second private subnet and randomly select an availabilty zone.
   PrivateSubnetB:
     Type: "AWS::EC2::Subnet"
     Properties:
@@ -42,6 +45,7 @@ Resources:
           Key: "Name"
           Value: !Sub "${AWS::StackName}-private-b"
 
+  #Create the public subnet and randomly select an availabilty zone.
   PublicSubnetA:
     Type: "AWS::EC2::Subnet"
     Properties:
@@ -54,6 +58,7 @@ Resources:
           Key: "Name"
           Value: !Sub "${AWS::StackName}-public-a"
 
+  #Create an Internet Gateway that instances in the public subnet will use to reach the Internet.
   InternetGateway:
     Type: "AWS::EC2::InternetGateway"
     Properties:
@@ -62,17 +67,20 @@ Resources:
           Key: "Name"
           Value: !Sub "${AWS::StackName}-igw"
 
+  #Assign an elastic IP address to the VPC.
   EIP:
     Type: "AWS::EC2::EIP"
     DependsOn: InternetGatewayAttachment
     Properties:
         Domain: "vpc"
 
+  #Create a Network ACL for the VPC.
   NetworkAcl:
     Type: "AWS::EC2::NetworkAcl"
     Properties:
         VpcId: !Ref VPC
 
+  #Create a route table for the public subnet.
   PublicRouteTable:
     Type: "AWS::EC2::RouteTable"
     Properties:
@@ -82,6 +90,7 @@ Resources:
           Key: "Name"
           Value: !Sub "${AWS::StackName} Public Routes"
 
+  #Create a route table for the private subnets.
   PrivateRouteTable:
     Type: "AWS::EC2::RouteTable"
     Properties:
@@ -91,6 +100,7 @@ Resources:
           Key: "Name"
           Value: !Sub "${AWS::StackName} Private Routes"
 
+  #Create the default route for instances in the public subnet to reach the Internet.
   DefaultPublicRoute:
     Type: "AWS::EC2::Route"
     DependsOn: InternetGatewayAttachment
@@ -98,56 +108,63 @@ Resources:
       DestinationCidrBlock: "0.0.0.0/0"
       GatewayId: !Ref InternetGateway
       RouteTableId: !Ref PublicRouteTable
-
+  #Create the default route for instances in the private subnets to reach the Internet.
   DefaultPrivateRoute:
     Type: "AWS::EC2::Route"
     Properties:
       DestinationCidrBlock: "0.0.0.0/0"
       NatGatewayId: !Ref NatGateway
       RouteTableId: !Ref PrivateRouteTable
-
+  #Create the NAT Gateway and attach the EIP for instances in the private subnets to reach the Internet.
   NatGateway:
     Type: "AWS::EC2::NatGateway"
     Properties:
       SubnetId: !Ref PublicSubnetA
       AllocationId: !GetAtt EIP.AllocationId
 
+  #Attach the Internet Gateway to the VPC.
   InternetGatewayAttachment:
     Type: "AWS::EC2::VPCGatewayAttachment"
     Properties:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
 
+  #Associate the route table to the subnet.
   PublicSubnetARouteTableAssociation:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnetA
 
+  #Associate the route table to the subnet.
   PrivateSubnetARouteTableAssociation:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
     Properties:
       RouteTableId: !Ref PrivateRouteTable
       SubnetId: !Ref PrivateSubnetA
 
+  #Associate the route table to the subnet.
   PrivateBSubnetRouteTableAssociation:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
     Properties:
       RouteTableId: !Ref PrivateRouteTable
       SubnetId: !Ref PrivateSubnetB
 
+  #Associate the Network ACL with the subnet.
   PublicSubnetNetworkAclAssociation:
     Type: "AWS::EC2::SubnetNetworkAclAssociation"
     Properties:
       SubnetId: !Ref PublicSubnetA
       NetworkAclId: !Ref NetworkAcl
 
+  #Associate the Network ACL with the subnet.
   PrivateSubnetANetworkAclAssociation:
     Type: "AWS::EC2::SubnetNetworkAclAssociation"
     Properties:
       SubnetId: !Ref PrivateSubnetA
       NetworkAclId: !Ref NetworkAcl
 
+  #Associate the Network ACL with the subnet.
   PrivateSubnetBSubnetNetworkAclAssociation:
     Type: "AWS::EC2::SubnetNetworkAclAssociation"
     Properties:
@@ -161,13 +178,13 @@ Outputs:
     Value: !Ref VPC
     
   PublicSubnet2: 
-    Description: A reference to the public subnet in the 2nd Availability Zone
+    Description: A reference to the public subnet.
     Value: !Ref PublicSubnetA
 
   PrivateSubnet1:
-    Description: A reference to the private subnet in the 1st Availability Zone
+    Description: A reference to the private subnet in the 1st Availability Zone.
     Value: !Ref PrivateSubnetA
 
   PrivateSubnet2: 
-    Description: A reference to the private subnet in the 2nd Availability Zone
+    Description: A reference to the private subnet in the 2nd Availability Zone.
     Value: !Ref PrivateSubnetB
