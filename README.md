@@ -1,3 +1,3 @@
-# AWS CloudFormation Templates
+# AWS Resource Templates
 
-Here is a collection of templates I've created for various AWS services.
+Here is a collection of AWS resource templates I've created.
