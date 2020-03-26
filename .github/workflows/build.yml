@@ -24,7 +24,7 @@ jobs:
 
     # Install Taskcat
     - name: Install Taskcat
-      run: pip3 install taskcat   
+      run: pip3 install taskcat --user
     
     # Runs a single command using the runners shell
     - name: Run a one-line script
